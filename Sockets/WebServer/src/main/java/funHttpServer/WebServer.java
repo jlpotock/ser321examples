@@ -25,7 +25,12 @@ import java.util.Random;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.nio.charset.Charset;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.json.*;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 
 class WebServer {
   public static void main(String args[]) {
@@ -46,25 +51,56 @@ class WebServer {
       server = new ServerSocket(port);
       System.out.println("Server started on port: " + port);
       while (true) {
-        sock = server.accept();
-        out = sock.getOutputStream();
-        in = sock.getInputStream();
-        byte[] response = createResponse(in);
-        out.write(response);
-        out.flush();
-        in.close();
-        out.close();
-        sock.close();
+        try {
+          sock = server.accept();
+          out = sock.getOutputStream();
+          in = sock.getInputStream();
+
+          try {
+            byte[] response = createResponse(in);
+            out.write(response);
+            out.flush();
+          } catch (Exception e) {
+            System.err.println("Error generating response: " + e.getMessage());
+            out.write("<html>Error processing request</html>".getBytes());
+          }
+          //  in.close();
+          //  out.close();
+          //  sock.close();
+
+        } catch (IOException e) {
+          System.err.println("Error handling the client connection: " + e.getMessage());
+        } finally {
+          if (in != null) {
+            try {
+              in.close();
+            } catch (IOException e) {
+              System.err.println("Error closing input stream: " + e.getMessage());
+            }
+          }
+        }
+        if (out != null) {
+          try {
+            out.close();
+          } catch (IOException e) {
+            System.err.println("Error closing output stream: " + e.getMessage());
+          }
+        }
+        if (sock != null) {
+          try {
+            sock.close();
+          } catch (IOException e) {
+            System.err.println("Error closing client socket: " + e.getMessage());
+          }
+        }
       }
-    } catch (IOException e) {
-      System.err.println("Error handling the client connection: " + e.getMessage());
 
     } catch (Exception e){
         System.err.println("Could not start the server: " + e.getMessage());
         //e.printStackTrace();
 
     } finally {
-      if (sock != null) {
+      if (server != null) {
         try {
           server.close();
           System.out.println("Server socket is closed.");
@@ -195,7 +231,6 @@ class WebServer {
             builder.append("HTTP/1.1 200 OK\n");
             builder.append("Content-Type: text/html; charset=utf-8\n");
             builder.append("\n");
-            builder.append("Would theoretically be a file but removed this part, you do not have to do anything with it for the assignment");
           } else { // failure
             builder.append("HTTP/1.1 404 Not Found\n");
             builder.append("Content-Type: text/html; charset=utf-8\n");
@@ -223,22 +258,78 @@ class WebServer {
           builder.append("Content-Type: text/html; charset=utf-8\n");
           builder.append("\n");
           builder.append("Result is: " + result);
-try {
-        } catch (NumberFormatException e) {
-  builder.append("HTTP/1.1 400 Bad Request\n");
-  builder.append("Content-Type: text/html; charset=utf-8\n");
-  builder.append("\n");
-  builder.append("Invalid input, please provide valid numbers for multiplication.");
+          try {
+          } catch (NumberFormatException e) {
+            builder.append("HTTP/1.1 400 Bad Request\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n");
+            builder.append("\n");
+            builder.append("Invalid input, please provide valid numbers for multiplication.");
 
-} catch (Exception e) {
-  builder.append("HTTP/1.1 500 Internal Server Error\n");
-  builder.append("Content-Type: text/html; charset=utf-8\n");
-  builder.append("\n");
-  builder.append("An unexpected error occurred: " + e.getMessage());
-}
+          } catch (Exception e) {
+            builder.append("HTTP/1.1 500 Internal Server Error\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n");
+            builder.append("\n");
+            builder.append("An unexpected error occurred: " + e.getMessage());
+          }
 
           // TODO: Include error handling here with a correct error code and
           // a response that makes sense
+
+
+          //Below is my first additional request for WebServer
+        } else if (request.contains("weather?")) {
+          Map<String, String> query_pairs = splitQuery(request.replace("weather?", ""));
+          String location = query_pairs.get("location");
+          String unit = query_pairs.get("unit");
+
+          if (location == null || unit == null) {
+            builder.append("HTTP/1.1 400 Bad Request\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n\n");
+            builder.append("<h1>Error: Missing parameters</h1><p>Both 'location' and 'unit' parameters are required.</p>");
+          } else if (!unit.equals("C") && !unit.equals("F")) {
+            builder.append("HTTP/1.1 400 Bad Request\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n\n");
+            builder.append("<h1>Error: Invalid unit</h1><p>Use 'C' for Celsius or 'F' for Fahrenheit.</p>");
+
+          } else {
+            String json = fetchURL("https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&current_weather=true&temperature_unit=" + unit);
+            //JsonParser JSONParser;
+            JsonObject jsonResponse = JsonParser.parseString(json).getAsJsonObject();
+
+            builder.append("HTTP/1.1 200 OK\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n\n");
+            builder.append("<h1>Weather for ").append(location).append("</h1>");
+            builder.append("<p>Temperature: ").append(jsonResponse.get("temperature").toString()).append(" ").append(unit).append("</p>");
+          }
+
+          //My second additional request for my WebServer
+        } else if (request.contains("agecalc?")) {
+          Map<String, String> query_pairs = splitQuery(request.replace("agecalc?", ""));
+          String date1 = query_pairs.get("date1");
+          String date2 = query_pairs.get("date2");
+          String unit = query_pairs.get("unit");
+
+          if (date1 == null || date2 == null || unit == null) {
+            builder.append("HTTP/1.1 400 Bad Request\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n\n");
+            builder.append("<h1>Error: Missing parameters</h1><p>'date1', 'date2', and 'unit' parameters are required.</p>");
+
+          } else if (!unit.equals("years") && !unit.equals("days")) {
+            builder.append("HTTP/1.1 400 Bad Request\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n\n");
+            builder.append("<h1>Error: Invalid unit</h1><p>Use 'years' or 'days' for unit.</p>");
+
+          } else {
+            LocalDate d1 = LocalDate.parse(date1);
+            LocalDate d2 = LocalDate.parse(date2);
+            long difference = unit.equals("days") ? ChronoUnit.DAYS.between(d1, d2) : ChronoUnit.YEARS.between(d1, d2);
+
+            builder.append("HTTP/1.1 200 OK\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n\n");
+            builder.append("<h1>Age Difference</h1>");
+            builder.append("<p>The difference between ").append(date1).append(" and ").append(date2).append(" is ").append(difference).append(" ").append(unit).append("</p>");
+
+          }
 
         } else if (request.contains("github?")) {
           // pulls the query from the request and runs it with GitHub's REST API
