@@ -43,6 +43,7 @@ class WebServer {
 
     try {
       server = new ServerSocket(port);
+      System.out.println("Server started on port: " + port);
       while (true) {
         sock = server.accept();
         out = sock.getOutputStream();
@@ -55,14 +56,21 @@ class WebServer {
         sock.close();
       }
     } catch (IOException e) {
-      e.printStackTrace();
+      System.err.println("Error handling the client connection: " + e.getMessage());
+
+    } catch (Exception e){
+        System.err.println("Could not start the server: " + e.getMessage());
+        //e.printStackTrace();
+
     } finally {
       if (sock != null) {
         try {
           server.close();
+          System.out.println("Server socket is closed.");
         } catch (IOException e) {
-          // TODO Auto-generated catch block
-          e.printStackTrace();
+          System.err.println("Error closing server socket: " + e.getMessage());
+          // TODO (1) Auto-generated catch block
+          //e.printStackTrace();
         }
       }
     }
@@ -213,6 +221,19 @@ class WebServer {
           builder.append("Content-Type: text/html; charset=utf-8\n");
           builder.append("\n");
           builder.append("Result is: " + result);
+try {
+        } catch (NumberFormatException e) {
+  builder.append("HTTP/1.1 400 Bad Request\n");
+  builder.append("Content-Type: text/html; charset=utf-8\n");
+  builder.append("\n");
+  builder.append("Invalid input, please provide valid numbers for multiplication.");
+
+} catch (Exception e) {
+  builder.append("HTTP/1.1 500 Internal Server Error\n");
+  builder.append("Content-Type: text/html; charset=utf-8\n");
+  builder.append("\n");
+  builder.append("An unexpected error occurred: " + e.getMessage());
+}
 
           // TODO: Include error handling here with a correct error code and
           // a response that makes sense
@@ -235,6 +256,7 @@ class WebServer {
           builder.append("Content-Type: text/html; charset=utf-8\n");
           builder.append("\n");
           builder.append("Check the todos mentioned in the Java source file");
+          builder.append(json);
           // TODO: Parse the JSON returned by your fetch and create an appropriate
           // response based on what the assignment document asks for
 
@@ -244,7 +266,7 @@ class WebServer {
           builder.append("HTTP/1.1 400 Bad Request\n");
           builder.append("Content-Type: text/html; charset=utf-8\n");
           builder.append("\n");
-          builder.append("I am not sure what you want me to do...");
+          builder.append("Unsupported request" + request);
         }
 
         // Output
@@ -253,6 +275,16 @@ class WebServer {
     } catch (IOException e) {
       e.printStackTrace();
       response = ("<html>ERROR: " + e.getMessage() + "</html>").getBytes();
+    } catch (Exception e) {
+      e.printStackTrace();
+    } finally {
+      if (in != null) {
+        try {
+          in.close();
+        } catch (IOException e) {
+          e.printStackTrace();
+        }
+      }
     }
 
     return response;
