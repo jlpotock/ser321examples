@@ -25,6 +25,9 @@ import java.util.Random;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.nio.charset.Charset;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.json.JSONException;
 
 class WebServer {
   public static void main(String args[]) {
@@ -202,6 +205,7 @@ class WebServer {
             builder.append("File not found: " + file);
           }
         } else if (request.contains("multiply?")) {
+
           // This multiplies two numbers, there is NO error handling, so when
           // wrong data is given this just crashes
 
@@ -249,18 +253,56 @@ try {
 
           Map<String, String> query_pairs = new LinkedHashMap<String, String>();
           query_pairs = splitQuery(request.replace("github?", ""));
+
+          if (query_pairs == null || !query_pairs.containsKey("query")) {
+              builder.append("HTTP/1.1 400 Bad Request\n");
+              builder.append("Content-Type: text/html; charset=utf-8\n");
+              builder.append("\n");
+              builder.append("Missing query parameter for GitHub request.");
+              response = builder.toString().getBytes();
+              return response;
+
+          }
           String json = fetchURL("https://api.github.com/" + query_pairs.get("query"));
           System.out.println(json);
 
-          builder.append("HTTP/1.1 200 OK\n");
-          builder.append("Content-Type: text/html; charset=utf-8\n");
-          builder.append("\n");
-          builder.append("Check the todos mentioned in the Java source file");
-          builder.append(json);
+          if (json == null) {
+            builder.append("HTTP/1.1 500  Internal Server Error\n");
+            builder.append("Content-Type: text/html; charset=utf-8\n");
+            builder.append("\n");
+            builder.append("Failed to fetch the data from GitHub.");
+            response = builder.toString().getBytes();
+            return response;
+
+          }
+           try {
+             JSONArray repository = new JSONArray(json);
+             StringBuilder repoDetails = new StringBuilder();
+
+             for (int i = 0; i < repository.length(); i++) {
+               JSONObject repo = repository.getJSONObject(i);
+               String fullName = repo.getString("full_name");
+               int id = repo.getInt("id");
+               String ownerLogin = repo.getJSONObject("owner").getString("login");
+
+               repoDetails.append("Repo: ").append(fullName)
+                   .append(", ID: ").append(id)
+                   .append(", Owner: ").append(ownerLogin)
+                   .append("<br>");
+             }
+           builder.append("HTTP/1.1 200 OK\n");
+             builder.append("Content-Type: text/html; charset=utf-8\n");
+             builder.append("\n");
+             builder.append(repoDetails.toString());
           // TODO: Parse the JSON returned by your fetch and create an appropriate
           // response based on what the assignment document asks for
 
-        } else {
+        } catch (JSONException e) {
+             builder.append("HTTP/1.1 500 Internal Server Error\n");
+             builder.append("Content-Type: text/html; charset=utf-8\n");
+             builder.append("\n");
+             builder.append("Error parsing JSON response: " + e.getMessage());
+           }
           // if the request is not recognized at all
 
           builder.append("HTTP/1.1 400 Bad Request\n");
@@ -283,6 +325,7 @@ try {
           in.close();
         } catch (IOException e) {
           e.printStackTrace();
+          return null;
         }
       }
     }
