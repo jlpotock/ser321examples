@@ -25,9 +25,7 @@ import java.util.Random;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.nio.charset.Charset;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.json.JSONException;
+import org.json.*;
 
 class WebServer {
   public static void main(String args[]) {
@@ -264,7 +262,7 @@ try {
 
           }
           String json = fetchURL("https://api.github.com/" + query_pairs.get("query"));
-          System.out.println(json);
+
 
           if (json == null) {
             builder.append("HTTP/1.1 500  Internal Server Error\n");
@@ -276,6 +274,7 @@ try {
 
           }
            try {
+             System.out.println(json);
              JSONArray repository = new JSONArray(json);
              StringBuilder repoDetails = new StringBuilder();
 
@@ -290,6 +289,9 @@ try {
                    .append(", Owner: ").append(ownerLogin)
                    .append("<br>");
              }
+             String page = new String(readFileInBytes(new File("www/root.html")));
+             page = page.replace("${links}",  buildFileList());
+             page = page.replace("${repoDetails}", repoDetails.toString());
            builder.append("HTTP/1.1 200 OK\n");
              builder.append("Content-Type: text/html; charset=utf-8\n");
              builder.append("\n");
