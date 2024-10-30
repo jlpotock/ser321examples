@@ -43,75 +43,109 @@ class WebServer {
    */
   public WebServer(int port) {
     ServerSocket server = null;
-    Socket sock = null;
-    InputStream in = null;
-    OutputStream out = null;
+    //Socket sock = null;
+    // InputStream in = null;
+    // OutputStream out = null;
 
     try {
       server = new ServerSocket(port);
-      System.out.println("Server started on port: " + port);
+      String serverIP = InetAddress.getLocalHost().getHostAddress();
+      System.out.println("Server started at http://" + serverIP + ":" + port);
+
       while (true) {
         try {
-          sock = server.accept();
-          out = sock.getOutputStream();
-          in = sock.getInputStream();
+          Socket sock = server.accept();
+             System.out.println("Client connected: " + sock.getInetAddress());
+             handleClient(sock);
+    //         InputStream in = sock.getInputStream();
+    //         OutputStream out = sock.getOutputStream();
 
-          try {
-            byte[] response = createResponse(in);
-            out.write(response);
-            out.flush();
-          } catch (Exception e) {
-            System.err.println("Error generating response: " + e.getMessage());
-            out.write("<html>Error processing request</html>".getBytes());
-          }
-          //  in.close();
-          //  out.close();
-          //  sock.close();
+   //       byte[] response = createResponse(in);
+   //       out.write(response);
+   //       out.flush();
+   //       System.out.println("Response sent to client.");
 
+        } catch (SocketException se) {
+          System.err.println("Socket exception: " + se.getMessage());
         } catch (IOException e) {
-          System.err.println("Error handling the client connection: " + e.getMessage());
-        } finally {
-          if (in != null) {
-            try {
-              in.close();
-            } catch (IOException e) {
-              System.err.println("Error closing input stream: " + e.getMessage());
-            }
-          }
-        }
-        if (out != null) {
-          try {
-            out.close();
-          } catch (IOException e) {
-            System.err.println("Error closing output stream: " + e.getMessage());
-          }
-        }
-        if (sock != null) {
-          try {
-            sock.close();
-          } catch (IOException e) {
-            System.err.println("Error closing client socket: " + e.getMessage());
-          }
+          System.err.println("Error with client connection: " + e.getMessage());
+          e.printStackTrace();
+          // out.write("<html>Error processing request</html>".getBytes());
         }
       }
 
-    } catch (Exception e){
-        System.err.println("Could not start the server: " + e.getMessage());
-        //e.printStackTrace();
 
+      //  in.close();
+      // out.close();
+      // sock.close();
+
+    } catch (IOException e) {
+      System.err.println("Error handling the client connection: " + e.getMessage());
     } finally {
-      if (server != null) {
+      if (server != null && !server.isClosed()) {
         try {
           server.close();
           System.out.println("Server socket is closed.");
         } catch (IOException e) {
-          System.err.println("Error closing server socket: " + e.getMessage());
-          // TODO (1) Auto-generated catch block
-          //e.printStackTrace();
+          System.err.println("Error closing input stream: " + e.getMessage());
         }
       }
     }
   }
+
+private void handleClient(Socket sock) {
+  try (InputStream in = sock.getInputStream();
+       OutputStream out = sock.getOutputStream()) {
+
+    byte[] response = createResponse(in);
+    out.write(response);
+    out.flush();
+    System.out.println("Response sent to client.");
+
+  } catch (IOException e) {
+    System.err.println("Error handling client request: " + e.getMessage());
+  } finally {
+    try {
+      sock.close();
+    } catch (IOException e) {
+      System.err.println("Error closing client socket: " + e.getMessage());
+    }
+  }
+}
+
+       // if (out != null) {
+       //   try {
+        //    out.close();
+       //   } catch (IOException e) {
+       //     System.err.println("Error closing output stream: " + e.getMessage());
+       //   }
+       // }
+       // if (sock != null) {
+       //   try {
+       //     sock.close();
+       //   } catch (IOException e) {
+        //    System.err.println("Error closing client socket: " + e.getMessage());
+        //  }
+       // }
+     // }
+
+    //} catch (Exception e){
+      //  System.err.println("Could not start the server: " + e.getMessage());
+        //e.printStackTrace();
+
+   // } finally {
+     // if (server != null) {
+     //   try {
+     //     server.close();
+      //    System.out.println("Server socket is closed.");
+      //  } catch (IOException e) {
+      //    System.err.println("Error closing server socket: " + e.getMessage());
+          // TODO (1) Auto-generated catch block
+          //e.printStackTrace();
+      //  }
+     // }
+   // }
+ // }
 
   /**
    * Used in the "/random" endpoint
@@ -135,6 +169,7 @@ class WebServer {
     byte[] response = null;
     BufferedReader in = null;
 
+
     try {
 
       // Read from socket's input stream. Must use an
@@ -153,7 +188,7 @@ class WebServer {
         System.out.println("Received: " + line);
 
         // find end of header("\n\n")
-        if (line == null || line.equals(""))
+        if (line == null || line.isEmpty())
           done = true;
         // parse GET format ("GET <path> HTTP/1.1")
         else if (line.startsWith("GET")) {
@@ -165,6 +200,7 @@ class WebServer {
         }
 
       }
+
       System.out.println("FINISHED PARSING HEADER\n");
 
       // Generate an appropriate response to the user
@@ -295,11 +331,16 @@ class WebServer {
             String json = fetchURL("https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&current_weather=true&temperature_unit=" + unit);
             //JsonParser JSONParser;
             JsonObject jsonResponse = JsonParser.parseString(json).getAsJsonObject();
+            String tempCelsius = jsonResponse.getAsJsonObject("current").getAsJsonObject("condition").get("text").getAsString();
+            String condition = jsonResponse.getAsJsonObject("current").getAsJsonObject("condition").get("text").getAsString();
 
             builder.append("HTTP/1.1 200 OK\n");
             builder.append("Content-Type: text/html; charset=utf-8\n\n");
             builder.append("<h1>Weather for ").append(location).append("</h1>");
+            builder.append("\n");
+            builder.append("<html><body>");
             builder.append("<p>Temperature: ").append(jsonResponse.get("temperature").toString()).append(" ").append(unit).append("</p>");
+            builder.append("</body></html>");
           }
 
           //My second additional request for my WebServer
@@ -312,12 +353,12 @@ class WebServer {
           if (date1 == null || date2 == null || unit == null) {
             builder.append("HTTP/1.1 400 Bad Request\n");
             builder.append("Content-Type: text/html; charset=utf-8\n\n");
-            builder.append("<h1>Error: Missing parameters</h1><p>'date1', 'date2', and 'unit' parameters are required.</p>");
+            builder.append("<html><body><h1>Error: Missing parameters</h1><p>'date1', 'date2', and 'unit' parameters are required.</p></body></html>");
 
           } else if (!unit.equals("years") && !unit.equals("days")) {
             builder.append("HTTP/1.1 400 Bad Request\n");
             builder.append("Content-Type: text/html; charset=utf-8\n\n");
-            builder.append("<h1>Error: Invalid unit</h1><p>Use 'years' or 'days' for unit.</p>");
+            builder.append("<html><body><h1>Error: Invalid unit</h1><p>Use 'years' or 'days' for unit.</p></body></html>");
 
           } else {
             LocalDate d1 = LocalDate.parse(date1);
